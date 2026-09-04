@@ -53,7 +53,7 @@ The main purpose of OWD is to provide a **programmatic directory of websites** t
 
 ### Requirements
 
-- **Node.js 22 or later**
+- **Node.js 18 or later**
 - **1 GB disk space** (default, configurable)
 - **Internet connection**
 
