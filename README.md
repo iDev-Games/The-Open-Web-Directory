@@ -60,8 +60,8 @@ The main purpose of OWD is to provide a **programmatic directory of websites** t
 ### Installation
 
 ```bash
-git clone https://github.com/idev-games/open-web-directory.git
-cd open-web-directory
+git clone https://github.com/idev-games/the-open-web-directory.git
+cd the-open-web-directory
 npm start
 ```
 
