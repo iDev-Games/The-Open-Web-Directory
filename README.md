@@ -6,7 +6,7 @@
 
 **A lightweight, distributed web directory network. Discover sites by querying raw indexed data.**
 
-The Open Web Directory (OWD) is a distributed directory of the open web — a programmatic data source providing searchable metadata about websites. It's designed for developers, AI systems, and researchers who need raw website data without the noise of ranking algorithms.
+The Open Web Directory (OWD) is a distributed directory of the open web, a programmatic data source providing searchable metadata about websites. It's designed for developers, AI systems, and researchers who need raw website data without the noise of ranking algorithms.
 
 OWD is designed to be run by anyone, on modest hardware, with minimal configuration. Clone the repo, run `npm start`, and you're live.
 
