@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit a URL - The Open Web Directory</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="logo.png" alt="The open web directory" class="logo">
+      <h1>Submit a URL</h1>
+      <p class="tagline">Help us discover the open web</p>
+      <div class="nav">
+        <a href="/">Search</a>
+        <a href="network.html">Network</a>
+        <a href="submit.html">Submit URL</a>
+        <a href="contribute.html">Run a Node</a>
+      </div>
+    </header>
+
+    <div class="submit-box">
+      <div class="info-box">
+        <strong>How it works:</strong> Submit URLs to be added to the crawl queue. The network will discover and index these pages, making them searchable by everyone.
+      </div>
+
+      <div id="message"></div>
+
+      <form id="submitForm">
+        <div class="form-group">
+          <label for="url">Website URL *</label>
+          <input
+            type="url"
+            id="url"
+            name="url"
+            placeholder="https://example.com"
+            required
+            autofocus
+          />
+          <div class="help-text">Enter the full URL including http:// or https://</div>
+        </div>
+
+        <button type="submit" id="submitBtn">Submit URL for Crawling</button>
+      </form>
+
+      <div class="examples">
+        <h3>What happens when I submit a URL?</h3>
+        <ul>
+          <li>✅ Your URL is added to the front of the crawl queue for priority processing</li>
+          <li>✅ The crawler will fetch the page and extract title, description, and links</li>
+          <li>✅ Pages with proper metadata (&lt;title&gt; and &lt;meta name="description"&gt;) will be indexed</li>
+          <li>✅ The crawler respects robots.txt and only follows HTTP(S) links</li>
+          <li>ℹ️ This is an open web directory - it indexes publicly accessible content as-is</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    const config = window.OWD_CONFIG || {};
+    const BOOTSTRAP_NODES = config.bootstrapNodes || [
+      { host: 'localhost', port: 8471, protocol: 'http' }
+    ];
+
+    let currentNode = null;
+
+    // Connect to a bootstrap node
+    async function connectToNode() {
+      for (const node of BOOTSTRAP_NODES) {
+        try {
+          const protocol = node.protocol || 'http';
+          const url = `${protocol}://${node.host}:${node.port}/node`;
+          const response = await fetch(url);
+          const data = await response.json();
+
+          currentNode = { host: node.host, port: node.port, protocol: protocol, ...data };
+          return true;
+        } catch (err) {
+          console.error(`Failed to connect to ${node.host}:${node.port}`, err);
+        }
+      }
+
+      showMessage('Could not connect to any network node. Please try again later.', 'error');
+      return false;
+    }
+
+    // Show message to user
+    function showMessage(text, type = 'success') {
+      const messageDiv = document.getElementById('message');
+      messageDiv.className = type;
+      messageDiv.textContent = text;
+
+      if (type === 'success') {
+        setTimeout(() => {
+          messageDiv.textContent = '';
+          messageDiv.className = '';
+        }, 5000);
+      }
+    }
+
+    // Handle form submission
+    document.getElementById('submitForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const url = document.getElementById('url').value.trim();
+      const submitBtn = document.getElementById('submitBtn');
+
+      // Basic URL validation
+      try {
+        new URL(url);
+      } catch (err) {
+        showMessage('Please enter a valid URL (including http:// or https://)', 'error');
+        return;
+      }
+
+      // Ensure we're connected
+      if (!currentNode) {
+        showMessage('Connecting to network...', 'info');
+        const connected = await connectToNode();
+        if (!connected) {
+          return;
+        }
+      }
+
+      // Disable button while submitting
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+
+      try {
+        const protocol = currentNode.protocol || 'http';
+        const apiUrl = `${protocol}://${currentNode.host}:${currentNode.port}/submit`;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showMessage(`✅ URL submitted successfully! It will be crawled with priority.`, 'success');
+
+          // Clear form
+          document.getElementById('url').value = '';
+        } else {
+          showMessage(data.error || 'Failed to submit URL', 'error');
+        }
+      } catch (err) {
+        showMessage('Failed to submit URL. Please try again.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit URL for Crawling';
+      }
+    });
+
+    // Connect on page load
+    connectToNode();
+  </script>
+</body>
+</html>

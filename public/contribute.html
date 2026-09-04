@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run a Node - The Open Web Directory</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="logo.png" alt="The open web directory" class="logo">
+      <h1>Run Your Own Node</h1>
+      <p class="tagline">Contribute to our network and help map out the open web</p>
+      <div class="nav">
+        <a href="/">Search</a>
+        <a href="network.html">Network</a>
+        <a href="submit.html">Submit URL</a>
+        <a href="contribute.html">Run a Node</a>
+      </div>
+    </header>
+
+    <div class="hero">
+      <h2>Join the Distributed Web Directory</h2>
+      <p>Help build an open alternative to centralized search by running your own OWD node</p>
+      <a href="https://github.com/iDev-Games/The-Open-Web-Directory" class="download-btn">Download on GitHub</a>
+      <a href="https://github.com/iDev-Games/The-Open-Web-Directory/archive/refs/heads/main.zip" class="download-btn secondary">Download ZIP</a>
+    </div>
+
+    <div class="content">
+      <h2>Why Run a Node?</h2>
+
+      <div class="features">
+        <div class="feature">
+          <h3>🌐 Contribute to the Network</h3>
+          <p>Help index the web and make it discoverable for everyone</p>
+        </div>
+        <div class="feature">
+          <h3>🔒 Own Your Search</h3>
+          <p>Run your own search infrastructure without depending on Big Tech</p>
+        </div>
+        <div class="feature">
+          <h3>💡 Learn & Experiment</h3>
+          <p>Understand how search engines work by running one yourself</p>
+        </div>
+        <div class="feature">
+          <h3>🤝 Join the Community</h3>
+          <p>Be part of a distributed movement for an open web</p>
+        </div>
+      </div>
+
+      <h2>Quick Start</h2>
+
+      <ol class="steps">
+        <li>
+          <strong>Install Node.js</strong>
+          <p>Download and install Node.js 18 or later from <a href="https://nodejs.org/" target="_blank">nodejs.org</a></p>
+        </li>
+        <li>
+          <strong>Download OWD</strong>
+          <p>Clone or download the repository from GitHub</p>
+          <div class="code-block">
+git clone https://github.com/iDev-Games/The-Open-Web-Directory.git
+cd open-web-directory
+          </div>
+        </li>
+        <li>
+          <strong>Start Your Node</strong>
+          <p>Run the following command:</p>
+          <div class="code-block">
+npm start
+          </div>
+        </li>
+        <li>
+          <strong>Access Your Node</strong>
+          <p>Open your browser to <a href="http://localhost:80">http://localhost:80</a></p>
+        </li>
+      </ol>
+
+      <div class="info-box">
+        <strong>That's it!</strong> Your node is now running, crawling the web, and contributing to the network.
+      </div>
+
+      <h2>System Requirements</h2>
+
+      <ul>
+        <li><strong>Operating System:</strong> Windows, macOS, or Linux</li>
+        <li><strong>Node.js:</strong> Version 18 or later</li>
+        <li><strong>Disk Space:</strong> 1 GB minimum (configurable up to terabytes)</li>
+        <li><strong>RAM:</strong> 512 MB minimum (1-2 GB recommended)</li>
+        <li><strong>Network:</strong> Always-on internet connection (optional but recommended)</li>
+      </ul>
+
+      <h2>Configuration</h2>
+
+      <p>Customize your node by editing <code>src/config.js</code>:</p>
+
+      <h3>Storage Contribution</h3>
+      <p>Set how much disk space you want to contribute:</p>
+      <div class="code-block">
+storage: {
+  limitBytes: 10 * GB,  // Contribute 10 GB
+}
+      </div>
+
+      <h3>Crawler Settings</h3>
+      <p>Adjust crawling speed and behavior:</p>
+      <div class="code-block">
+crawler: {
+  enabled: true,
+  requestsPerSecond: 2,  // Crawl faster
+}
+      </div>
+
+      <h3>Option 1: Join the Main Network</h3>
+      <p>By default, your node connects to the main OWD network via the gateway. This is configured in <code>src/config.js</code>:</p>
+      <div class="code-block">
+gateway: {
+  peers: [
+    {
+      host: 'owd.idevgames.co.uk',
+      port: 443,
+      name: 'OWD Gateway'
+    }
+  ]
+}
+      </div>
+
+      <h3>Option 2: Create Your Own Private Network</h3>
+      <p>To start a completely independent network (isolated from the main OWD network):</p>
+
+      <ol class="steps">
+        <li>
+          <strong>Edit Network Configuration</strong>
+          <p>Open <code>src/config.js</code> and customize your network identity:</p>
+          <div class="code-block">
+network: {
+  name: 'My Private Network',  // Give your network a name
+}
+
+node: {
+  name: 'My First Node',  // Name this specific node
+  version: '0.1.0',
+}
+          </div>
+        </li>
+        <li>
+          <strong>Remove Gateway Connection</strong>
+          <p>Comment out or empty the gateway peers to prevent connecting to the main network:</p>
+          <div class="code-block">
+gateway: {
+  peers: []  // Empty = isolated network
+}
+          </div>
+        </li>
+        <li>
+          <strong>Start Your First Node</strong>
+          <p>Run your node - it will operate independently:</p>
+          <div class="code-block">
+npm start
+          </div>
+        </li>
+        <li>
+          <strong>Add More Nodes (Optional)</strong>
+          <p>To add more nodes to your private network, configure them to connect to your first node. In the additional nodes' <code>src/config.js</code>:</p>
+          <div class="code-block">
+gateway: {
+  peers: [
+    {
+      host: 'your-first-node-ip-or-domain',
+      port: 80,  // or whatever port you configured
+      name: 'My First Node'
+    }
+  ]
+}
+          </div>
+        </li>
+      </ol>
+
+      <div class="info-box">
+        <strong>Private Network Use Cases:</strong>
+        <ul style="margin-top: 10px;">
+          <li>Corporate/enterprise intranets</li>
+          <li>Research and educational projects</li>
+          <li>Testing and development</li>
+          <li>Specialized topic networks</li>
+          <li>Privacy-focused communities</li>
+        </ul>
+      </div>
+
+      <h2>Running 24/7</h2>
+
+      <p>For maximum network contribution, run your node continuously:</p>
+
+      <ul>
+        <li><strong>Linux:</strong> Use systemd or PM2</li>
+        <li><strong>All platforms:</strong> Use PM2 process manager</li>
+        <li><strong>Docker:</strong> Run in a container for easy deployment</li>
+      </ul>
+
+      <h3>Using PM2</h3>
+      <div class="code-block">
+npm install -g pm2
+pm2 start index.js --name owd
+pm2 save
+pm2 startup
+      </div>
+
+      <h2>Make Your Node Public</h2>
+
+      <p>To allow others to connect and search through your node:</p>
+
+      <ol>
+        <li>Configure your router to forward port 8471 to your computer</li>
+        <li>Set up a domain name (optional)</li>
+        <li>Use a reverse proxy like Nginx for HTTPS (recommended)</li>
+        <li>Share your node address with the community</li>
+      </ol>
+
+      <div class="warning-box">
+        <strong>Security Note:</strong> OWD is designed to be safely exposed to the internet, but always follow best practices.
+      </div>
+
+      <h2>Getting Help</h2>
+
+      <ul>
+        <li><strong>Documentation:</strong> <a href="https://github.com/iDev-Games/The-Open-Web-Directory/blob/main/README.md">README.md</a></li>
+        <li><strong>Issues:</strong> <a href="https://github.com/iDev-Games/The-Open-Web-Directory/issues">GitHub Issues</a></li>
+        <li><strong>Discussions:</strong> <a href="https://github.com/iDev-Games/The-Open-Web-Directory/discussions">GitHub Discussions</a></li>
+      </ul>
+
+      <h2>Technical Details</h2>
+
+      <h3>What Your Node Does</h3>
+      <ul>
+        <li>Crawls websites starting from seed URLs</li>
+        <li>Extracts titles, descriptions, and links</li>
+        <li>Stores indexed data locally in compact JSONL format</li>
+        <li>Shares search results with the network</li>
+        <li>Discovers and connects to peer nodes</li>
+        <li>Provides HTTP API for search queries</li>
+      </ul>
+
+      <h3>Privacy & Bandwidth</h3>
+      <ul>
+        <li>Your node only crawls public web pages</li>
+        <li>No personal data is collected or shared</li>
+        <li>Bandwidth usage is configurable (default: 1 request/second)</li>
+        <li>Respects robots.txt and crawl delays</li>
+        <li>Storage is limited to configured amount</li>
+      </ul>
+
+      <h3>Safety & Security</h3>
+      <ul>
+        <li><strong>No downloads:</strong> OWD only fetches HTML metadata, not executable files</li>
+        <li><strong>No viruses:</strong> The crawler extracts only text (titles, descriptions, links) from web pages</li>
+        <li><strong>No malicious code execution:</strong> Pages are parsed as text, never executed</li>
+        <li><strong>Zero dependencies:</strong> No third-party packages means no supply chain attacks</li>
+        <li><strong>Open source:</strong> Every line of code is auditable on GitHub</li>
+        <li><strong>Safe by design:</strong> OWD cannot download or run executable files, scripts, or malware</li>
+      </ul>
+
+      <div class="info-box">
+        <strong>How it works:</strong> When OWD crawls a page, it downloads the HTML source code (just text), extracts the title, meta description, and links, then discards the rest. Think of it like reading a phone book — it only copies the names and numbers, nothing more. Your computer is never at risk.
+      </div>
+
+      <h2>Contributing</h2>
+
+      <p>Beyond running a node, you can also:</p>
+      <ul>
+        <li>Report bugs and suggest features</li>
+        <li>Contribute code improvements</li>
+        <li>Improve documentation</li>
+        <li>Share OWD with others</li>
+      </ul>
+
+      <p>See <a href="https://github.com/iDev-Games/The-Open-Web-Directory/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for details.</p>
+
+      <div style="text-align: center; margin-top: 40px; padding-top: 30px; border-top: 1px solid #ecf0f1;">
+        <a href="https://github.com/iDev-Games/The-Open-Web-Directory" class="download-btn">Get Started Now</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

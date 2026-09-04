@@ -1,0 +1,16 @@
+{
+  "name": "open-web-directory",
+  "version": "0.1.0",
+  "description": "A lightweight, distributed web directory network",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "diagnose": "node diagnose.js"
+  },
+  "keywords": ["search", "directory", "p2p", "web-discovery", "distributed"],
+  "license": "MIT"
+}

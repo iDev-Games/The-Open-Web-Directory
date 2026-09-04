@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Open Web Directory</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="logo.png" alt="The open web directory" class="logo">
+      <h1>A Lightweight, Distributed Web Directory Network</h1>
+      <p class="tagline">Discover sites by querying raw indexed data</p>
+      <div class="nav">
+        <a href="/">Search</a>
+        <a href="network.html">Network</a>
+        <a href="submit.html">Submit URL</a>
+        <a href="contribute.html">Run a Node</a>
+      </div>
+    </header>
+
+    <div id="connectionInfo" class="info" style="display: none;">
+      Connected to node: <strong id="nodeName">Unknown</strong>
+      <span id="connectionStatus" class="connection-status disconnected">Connecting...</span>
+    </div>
+
+    <div class="search-box">
+      <div class="search-input-container">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search the open web..."
+          autofocus
+        />
+      </div>
+      <div class="search-tips">
+        <small>
+          <strong>Tips:</strong>
+          <code>site:domain.com</code> •
+          <code>"exact phrase"</code> •
+          <code>-excludeword</code>
+        </small>
+      </div>
+      <button id="searchButton">Search</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    let currentNode = null;
+    let currentPage = 0;
+    let currentQuery = '';
+    let lastSearchData = null;
+
+    // Load config or use defaults
+    const config = window.OWD_CONFIG || {
+      bootstrapNodes: [{ host: 'localhost', port: 8471 }],
+      resultsPerPage: 20,
+      defaultDistributed: true
+    };
+
+    const RESULTS_PER_PAGE = config.resultsPerPage;
+    const BOOTSTRAP_NODES = config.bootstrapNodes;
+
+    // Try to connect to a bootstrap node
+    async function connectToNode() {
+      for (const node of BOOTSTRAP_NODES) {
+        try {
+          const protocol = node.protocol || 'http';
+          const url = `${protocol}://${node.host}:${node.port}/node`;
+          const response = await fetch(url);
+          const data = await response.json();
+
+          currentNode = { host: node.host, port: node.port, protocol: protocol, ...data };
+
+          document.getElementById('nodeName').textContent = data.name || 'Unknown Node';
+          document.getElementById('connectionStatus').textContent = 'Connected';
+          document.getElementById('connectionStatus').className = 'connection-status connected';
+          document.getElementById('connectionInfo').style.display = 'block';
+
+          console.log('Connected to node:', data);
+          return true;
+        } catch (err) {
+          console.error(`Failed to connect to ${node.host}:${node.port}`, err);
+        }
+      }
+
+      document.getElementById('connectionStatus').textContent = 'Disconnected';
+      document.getElementById('connectionStatus').className = 'connection-status disconnected';
+      return false;
+    }
+
+    // Perform search
+    async function performSearch(page = 0) {
+      const query = document.getElementById('searchInput').value.trim();
+      const resultsDiv = document.getElementById('results');
+
+      if (!query) {
+        resultsDiv.innerHTML = '';
+        return;
+      }
+
+      if (!currentNode) {
+        resultsDiv.innerHTML = '<div class="error">Not connected to any node. Please check your connection.</div>';
+        return;
+      }
+
+      currentQuery = query;
+      currentPage = page;
+
+      resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+
+      try {
+        const offset = page * RESULTS_PER_PAGE;
+        const protocol = currentNode.protocol || 'http';
+        const url = `${protocol}://${currentNode.host}:${currentNode.port}/search?q=${encodeURIComponent(query)}&limit=${RESULTS_PER_PAGE}&offset=${offset}`;
+        const response = await fetch(url);
+
+        if (response.status === 429) {
+          resultsDiv.innerHTML = `<div class="error">Rate limit exceeded. Please wait a minute before searching again.</div>`;
+          return;
+        }
+
+        const data = await response.json();
+
+        lastSearchData = data;
+        displayResults(data);
+      } catch (err) {
+        resultsDiv.innerHTML = `<div class="error">Search failed: ${err.message}</div>`;
+      }
+    }
+
+    // Display search results
+    function displayResults(data) {
+      const resultsDiv = document.getElementById('results');
+
+      if (!data.results || data.results.length === 0) {
+        let html = '<div class="no-results">No results found.</div>';
+
+        // Add back button if not on first page
+        if (currentPage > 0) {
+          html += '<div class="pagination">';
+          html += '<button id="prevPage">← Back to Page ' + currentPage + '</button>';
+          html += '</div>';
+        }
+
+        resultsDiv.innerHTML = html;
+
+        // Add event listener for back button
+        if (currentPage > 0) {
+          const prevBtn = document.getElementById('prevPage');
+          if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+              performSearch(currentPage - 1);
+            });
+          }
+        }
+
+        return;
+      }
+
+      let html = '<div class="results">';
+
+      // Get node name once for all results
+      const indexedBy = data.indexedBy || 'Unknown';
+
+      for (const result of data.results) {
+        const title = escapeHtml(result.title || 'Untitled');
+        const url = escapeHtml(result.url);
+        const description = escapeHtml(result.description || 'No description available');
+        const status = result.status || 'Unknown';
+        const score = result.score ? result.score.toFixed(1) : 'N/A';
+        // Use source if available (peer name), otherwise use indexedBy
+        const nodeName = result.source || indexedBy;
+        const attribution = `• Indexed by: ${escapeHtml(nodeName)}`;
+
+        html += `
+          <div class="result-item">
+            <div class="result-title">
+              <a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a>
+            </div>
+            <div class="result-url">${url}</div>
+            <div class="result-description">${description}</div>
+            <div class="result-meta">
+              <span>Status: ${status}</span>
+              <span>Score: ${score}</span>
+              <span>${attribution}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // Use uniqueResults for distributed search (deduped), otherwise total
+      const totalResults = data.distributed && data.uniqueResults !== undefined
+        ? data.uniqueResults
+        : data.total;
+
+      html += `<div class="stats">
+        Found ${totalResults} result(s) for "${escapeHtml(data.query)}"
+      `;
+
+      if (data.distributed) {
+        html += ` (distributed search across ${data.peerResults ? data.peerResults.length : 0} peer(s))`;
+      }
+
+      html += '</div>';
+
+      // Add pagination if there are more results
+      const totalPages = Math.ceil(totalResults / RESULTS_PER_PAGE);
+      if (totalPages > 1) {
+        html += '<div class="pagination">';
+        html += `<button id="firstPage" ${currentPage === 0 ? 'disabled' : ''} title="First page">&lt;&lt;</button>`;
+        html += `<button id="prevPage" ${currentPage === 0 ? 'disabled' : ''}>Previous</button>`;
+        html += `<span class="page-info">Page ${currentPage + 1} of ${totalPages}</span>`;
+        html += `<button id="nextPage" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>Next</button>`;
+        html += `<button id="lastPage" ${currentPage >= totalPages - 1 ? 'disabled' : ''} title="Last page">&gt;&gt;</button>`;
+        html += '</div>';
+      }
+
+      html += '</div>';
+
+      resultsDiv.innerHTML = html;
+
+      // Add pagination event listeners
+      if (totalPages > 1) {
+        const firstBtn = document.getElementById('firstPage');
+        const prevBtn = document.getElementById('prevPage');
+        const nextBtn = document.getElementById('nextPage');
+        const lastBtn = document.getElementById('lastPage');
+
+        if (firstBtn) {
+          firstBtn.addEventListener('click', () => {
+            performSearch(0);
+          });
+        }
+
+        if (prevBtn) {
+          prevBtn.addEventListener('click', () => {
+            if (currentPage > 0) {
+              performSearch(currentPage - 1);
+            }
+          });
+        }
+
+        if (nextBtn) {
+          nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages - 1) {
+              performSearch(currentPage + 1);
+            }
+          });
+        }
+
+        if (lastBtn) {
+          lastBtn.addEventListener('click', () => {
+            performSearch(totalPages - 1);
+          });
+        }
+      }
+    }
+
+    // Decode HTML entities, then escape for display
+    function escapeHtml(text) {
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = text;
+      const decoded = textarea.value;
+
+      const div = document.createElement('div');
+      div.textContent = decoded;
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.getElementById('searchButton').addEventListener('click', () => {
+      performSearch(0);
+    });
+    document.getElementById('searchInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        performSearch();
+      }
+    });
+
+    // Connect on load
+    connectToNode();
+  </script>
+</body>
+</html>

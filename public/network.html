@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Status - The Open Web Directory</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="logo.png" alt="The open web directory" class="logo">
+      <h1>Network Status</h1>
+      <p class="tagline">Live stats of the network.</p>
+      <div class="nav">
+        <a href="/">Search</a>
+        <a href="network.html">Network</a>
+        <a href="submit.html">Submit URL</a>
+        <a href="contribute.html">Run a Node</a>
+      </div>
+    </header>
+
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div id="stats" class="stats-grid"></div>
+
+    <div id="nodeInfo" class="node-info"></div>
+
+    <div id="peersSection" class="peers-section"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    let currentNode = null;
+
+    // Load config or use defaults
+    const config = window.OWD_CONFIG || {
+      bootstrapNodes: [{ host: 'localhost', port: 8471 }],
+      refreshInterval: 10000
+    };
+
+    const BOOTSTRAP_NODES = config.bootstrapNodes;
+
+    // Connect to a bootstrap node
+    async function connectToNode() {
+      for (const node of BOOTSTRAP_NODES) {
+        try {
+          const protocol = node.protocol || 'http';
+          const url = `${protocol}://${node.host}:${node.port}/node`;
+          const response = await fetch(url);
+          const data = await response.json();
+
+          currentNode = { host: node.host, port: node.port, protocol: protocol, ...data };
+          return true;
+        } catch (err) {
+          console.error(`Failed to connect to ${node.host}:${node.port}`, err);
+        }
+      }
+
+      document.getElementById('error').textContent = 'Could not connect to any network node.';
+      document.getElementById('error').style.display = 'block';
+      return false;
+    }
+
+    // Load network data
+    async function loadNetworkData() {
+      if (!currentNode) {
+        document.getElementById('error').textContent = 'Not connected to network.';
+        document.getElementById('error').style.display = 'block';
+        return;
+      }
+
+      try {
+        const protocol = currentNode.protocol || 'http';
+        const networkUrl = `${protocol}://${currentNode.host}:${currentNode.port}/network`;
+        const response = await fetch(networkUrl);
+        const data = await response.json();
+
+        displayStats(data);
+        displayNodeInfo(currentNode);
+        displayPeers(data.peers || []);
+      } catch (err) {
+        document.getElementById('error').textContent = `Failed to load network data: ${err.message}`;
+        document.getElementById('error').style.display = 'block';
+      }
+    }
+
+    // Display statistics
+    function displayStats(data) {
+      const statsDiv = document.getElementById('stats');
+
+      statsDiv.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${data.knownPeers || 0}</div>
+          <div class="stat-label">Known Peers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${data.onlinePeers || 0}</div>
+          <div class="stat-label">Online Peers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${formatNumber(data.totalIndexedPages || 0)}</div>
+          <div class="stat-label">Indexed Pages</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${formatBytes(data.storageContributed || 0)}</div>
+          <div class="stat-label">Storage Contributed</div>
+        </div>
+      `;
+    }
+
+    // Display node information
+    function displayNodeInfo(node) {
+      const nodeInfoDiv = document.getElementById('nodeInfo');
+
+      const uptime = formatUptime(node.uptime || 0);
+      const nodeId = node.nodeId || 'Unknown';
+      const shortId = nodeId.substring(0, 16) + '...';
+
+      nodeInfoDiv.innerHTML = `
+        <h2>Network</h2>
+        <div class="info-row">
+          <div class="info-label">Name</div>
+          <div class="info-value">${escapeHtml(node.networkName || 'Unknown Network')}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Node ID</div>
+          <div class="info-value">${shortId}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Version</div>
+          <div class="info-value">${node.version || 'Unknown'}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Uptime</div>
+          <div class="info-value">${uptime}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Pages Indexed</div>
+          <div class="info-value">${formatNumber(node.pagesIndexed || 0)}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Storage Used</div>
+          <div class="info-value">${formatBytes(node.storageUsed || 0)} / ${formatBytes(node.storageLimit || 0)}</div>
+        </div>
+        <div class="info-row">
+          <div class="info-label">Crawler</div>
+          <div class="info-value">${node.crawlerStatus || 'Unknown'}</div>
+        </div>
+      `;
+    }
+
+    // Display peers
+    function displayPeers(peers) {
+      const peersDiv = document.getElementById('peersSection');
+
+      if (!peers || peers.length === 0) {
+        peersDiv.innerHTML = `
+          <h2>Known Peers</h2>
+          <div class="empty-state">No peers discovered yet.</div>
+        `;
+        return;
+      }
+
+      // Deduplicate peers by nodeId (keep the most recent one)
+      const uniquePeers = new Map();
+      for (const peer of peers) {
+        const existing = uniquePeers.get(peer.nodeId);
+        if (!existing || (peer.lastSeen || 0) > (existing.lastSeen || 0)) {
+          uniquePeers.set(peer.nodeId, peer);
+        }
+      }
+
+      // Sort peers: online first (ranked by pages indexed), then offline (by last seen)
+      const sortedPeers = [...uniquePeers.values()].sort((a, b) => {
+        // Online nodes come first
+        if (a.online && !b.online) return -1;
+        if (!a.online && b.online) return 1;
+
+        // Among online nodes, sort by pages indexed (descending)
+        if (a.online && b.online) {
+          const aPages = a.stats?.recordCount || 0;
+          const bPages = b.stats?.recordCount || 0;
+          return bPages - aPages;
+        }
+
+        // Among offline nodes, sort by last seen (most recent first)
+        const aLastSeen = a.lastSeen || 0;
+        const bLastSeen = b.lastSeen || 0;
+        return bLastSeen - aLastSeen;
+      });
+
+      let html = '<h2>Network Contributors</h2><div class="peer-list">';
+
+      sortedPeers.forEach((peer, index) => {
+        const online = peer.online ? 'online' : 'offline';
+        const status = peer.online ? 'Online' : 'Offline';
+        const shortId = peer.nodeId ? peer.nodeId.substring(0, 16) + '...' : 'Unknown';
+        const lastSeen = peer.lastSeen ? new Date(peer.lastSeen).toLocaleString() : 'Never';
+        const pagesIndexed = peer.stats?.recordCount || 0;
+        const storageUsed = peer.stats?.bytesUsed || 0;
+
+        // Show rank for online nodes
+        const rank = peer.online ? `<span style="color: #3498db; font-weight: bold; margin-right: 10px;">#${index + 1}</span>` : '';
+
+        html += `
+          <div class="peer-card ${online}">
+            <div class="peer-header">
+              <div class="peer-name">${rank}${escapeHtml(peer.name || 'Unknown Node')}</div>
+              <div class="peer-status ${online}">${status}</div>
+            </div>
+            <div class="peer-details">
+              <div><strong>Node ID:</strong> <code style="font-size: 0.85em;">${shortId}</code></div>
+              <div><strong>Pages Indexed:</strong> ${formatNumber(pagesIndexed)}</div>
+              <div><strong>Storage Used:</strong> ${formatBytes(storageUsed)}</div>
+              <div><strong>Version:</strong> ${peer.version || 'Unknown'}</div>
+              <div><strong>Last Seen:</strong> ${lastSeen}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      peersDiv.innerHTML = html;
+    }
+
+    // Format bytes
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+      return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+    }
+
+    // Format number
+    function formatNumber(num) {
+      return num.toLocaleString();
+    }
+
+    // Format uptime
+    function formatUptime(seconds) {
+      if (seconds < 60) return seconds + ' seconds';
+      if (seconds < 3600) return Math.floor(seconds / 60) + ' minutes';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours';
+      return Math.floor(seconds / 86400) + ' days';
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize
+    async function init() {
+      const connected = await connectToNode();
+      if (connected) {
+        await loadNetworkData();
+
+        // Refresh at configured interval
+        setInterval(loadNetworkData, config.refreshInterval);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
