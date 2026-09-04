@@ -257,11 +257,11 @@ pm2 startup
         <li><strong>No malicious code execution:</strong> Pages are parsed as text, never executed</li>
         <li><strong>Zero dependencies:</strong> No third-party packages means no supply chain attacks</li>
         <li><strong>Open source:</strong> Every line of code is auditable on GitHub</li>
-        <li><strong>Safe by design:</strong> OWD cannot download or run executable files, scripts, or malware</li>
+        <li><strong>Safe by design:</strong> OWD does not execute downloaded web content and only stores extracted metadata.</li>
       </ul>
 
       <div class="info-box">
-        <strong>How it works:</strong> When OWD crawls a page, it downloads the HTML source code (just text), extracts the title, meta description, and links, then discards the rest. Think of it like reading a phone book — it only copies the names and numbers, nothing more. Your computer is never at risk.
+        <strong>How it works:</strong> When OWD crawls a page, it downloads the HTML source code (just text), extracts the title, meta description, and links, then discards the rest. Think of it like reading a phone book — it only copies the names and numbers, nothing more.
       </div>
 
       <h2>Contributing</h2>
