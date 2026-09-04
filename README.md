@@ -1,5 +1,9 @@
 # The Open Web Directory
 
+<p align="center">
+  <img src="https://github.com/iDev-Games/Cursor-JS/blob/master/public/logo.png">
+</p>
+
 **A lightweight, distributed web directory network. Discover sites by querying raw indexed data.**
 
 The Open Web Directory (OWD) is a distributed directory of the open web — a programmatic data source providing searchable metadata about websites. It's designed for developers, AI systems, and researchers who need raw website data without the noise of ranking algorithms.
@@ -16,7 +20,7 @@ OWD is a **distributed directory** providing:
 
 - **Raw indexed data**: URLs, titles, descriptions, and basic metadata
 - **Programmatic API**: JSON endpoints for automated systems
-- **Run your own node**: Your infrastructure, your data, no rate limits
+- **Run your own node**: Your infrastructure, your data
 - **Distributed network**: Multiple independent nodes working together
 - **Zero dependencies**: Uses only Node.js built-ins
 - **Open data**: All indexed information is openly queryable
@@ -32,7 +36,6 @@ The main purpose of OWD is to provide a **programmatic directory of websites** t
 
 **Why run your own node instead of using a central API?**
 
-- ✅ **No rate limits** - your node, your rules
 - ✅ **No congestion** - dedicated infrastructure
 - ✅ **Network resilience** - keep the directory distributed
 - ✅ **Data control** - contribute to a network of web data
@@ -528,39 +531,6 @@ Checks:
 - Store initialization
 - Network connectivity
 
-### Project Structure
-
-```
-├── src/
-│   ├── config.js          # Configuration
-│   ├── identity.js        # Node ID generation
-│   ├── node.js           # Main entry point
-│   ├── server.js         # HTTP server
-│   ├── store.js          # Storage engine
-│   ├── crawler.js        # Web crawler
-│   ├── queue.js          # Crawl queue
-│   ├── parser.js         # HTML parser
-│   ├── robots.js         # robots.txt handler
-│   ├── search.js         # Search algorithm
-│   ├── distributed-search.js  # P2P search
-│   ├── peers.js          # Peer management
-│   └── url.js            # URL utilities
-├── public/
-│   ├── index.html        # Search interface
-│   ├── network.html      # Network status
-│   ├── contribute.html   # How to run a node
-│   └── config.js         # Frontend config
-├── data/
-│   ├── identity.json     # Your node ID
-│   ├── peers.json        # Cached peers
-│   ├── metadata.json     # Storage metadata
-│   ├── index.json        # Search index
-│   └── records/          # Indexed data
-├── index.js              # Bootstrap
-├── diagnose.js           # Diagnostic tool
-└── package.json
-```
-
 ---
 
 ## 🤝 Contributing
@@ -683,21 +653,6 @@ curl "http://localhost/search?q=javascript+libraries&limit=50"
 - Community-run infrastructure
 - Open data initiatives
 
----
-
-## 🚀 Roadmap
-
-Planned features:
-
-- [ ] Full-text search (optional)
-- [ ] Advanced filtering (date, domain, status)
-- [ ] Image/media indexing
-- [ ] RSS feed generation
-- [ ] API authentication
-- [ ] Distributed hash table (DHT) for full autonomy
-- [ ] WebSocket real-time updates
-- [ ] Mobile app
-- [ ] Browser extension
 
 ---
 
