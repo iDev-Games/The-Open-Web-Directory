@@ -1,7 +1,7 @@
 # The Open Web Directory
 
 <p align="center">
-  <img src="https://github.com/iDev-Games/Cursor-JS/blob/master/public/logo.png">
+  <img src="https://github.com/iDev-Games/The-Open-Web-Directory/blob/master/public/logo.png"> 
 </p>
 
 **A lightweight, distributed web directory network. Discover sites by querying raw indexed data.**
