@@ -74,7 +74,7 @@ export const config = {
 
         // Identify ourselves honestly.
         userAgent:
-        'OpenWebDirectory/0.1 (+https://github.com/idev-games/open-web-directory)',
+        'OpenWebDirectory/0.1 (+https://github.com/idev-games/the-open-web-directory)',
 
         // Don't hammer a domain after errors.
         errorBackoffMs: 30000,

@@ -13,11 +13,11 @@ console.log('');
 // 1. Node.js version
 console.log('1. Node.js Version');
 console.log('   Version:', process.version);
-console.log('   Required: v22.0.0 or higher');
+console.log('   Required: v18.0.0 or higher');
 const major = parseInt(process.version.slice(1).split('.')[0]);
-if (major < 22) {
+if (major < 18) {
   console.log('   ❌ FAIL: Node.js version too old');
-  console.log('   Please upgrade to Node.js 22 or later');
+  console.log('   Please upgrade to Node.js 18 or later');
   process.exit(1);
 } else {
   console.log('   ✅ PASS');
