@@ -23,36 +23,37 @@
 
     <div class="submit-box">
       <div class="info-box">
-        <strong>How it works:</strong> Submit URLs to be added to the crawl queue. The network will discover and index these pages, making them searchable by everyone.
+        <strong>How it works:</strong> Submit a website domain or URL. We'll index the homepage and discover the sitemap. This is a directory of websites, not individual pages.
       </div>
 
       <div id="message"></div>
 
       <form id="submitForm">
         <div class="form-group">
-          <label for="url">Website URL *</label>
+          <label for="url">Website URL or Domain *</label>
           <input
             type="url"
             id="url"
             name="url"
-            placeholder="https://example.com"
+            placeholder="https://example.com or example.com"
             required
             autofocus
           />
-          <div class="help-text">Enter the full URL including http:// or https://</div>
+          <div class="help-text">Enter a website URL or domain - we'll extract the domain and index the homepage</div>
         </div>
 
-        <button type="submit" id="submitBtn">Submit URL for Crawling</button>
+        <button type="submit" id="submitBtn">Submit Domain for Indexing</button>
       </form>
 
       <div class="examples">
         <h3>What happens when I submit a URL?</h3>
         <ul>
-          <li>✅ Your URL is added to the front of the crawl queue for priority processing</li>
-          <li>✅ The crawler will fetch the page and extract title, description, and links</li>
-          <li>✅ Pages with proper metadata (&lt;title&gt; and &lt;meta name="description"&gt;) will be indexed</li>
-          <li>✅ The crawler respects robots.txt and only follows HTTP(S) links</li>
-          <li>ℹ️ This is an open web directory - it indexes publicly accessible content as-is</li>
+          <li>✅ We extract the domain from your URL</li>
+          <li>✅ The homepage is crawled for title, description, and sitemap</li>
+          <li>✅ Only ONE entry per domain (homepage only)</li>
+          <li>✅ Sitemap is detected and linked in search results</li>
+          <li>✅ The crawler respects robots.txt</li>
+          <li>ℹ️ This is a directory of websites, not a search engine for individual pages</li>
         </ul>
       </div>
     </div>

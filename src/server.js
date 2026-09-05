@@ -176,7 +176,7 @@ export class Server {
       createdAt: identity.createdAt,
       uptime: Math.floor(uptime / 1000),
       ready: this.store ? this.store.loaded : false, // Ready when store is loaded
-      pagesIndexed: this.store ? this.store.urls.size : 0,
+      sitesIndexed: this.store ? this.store.domains.size : 0,
       storageUsed: this.store ? this.store.bytesUsed : 0,
       storageLimit: this.config.storage.limitBytes,
       crawlerStatus: this.crawler ? 'running' : 'stopped',
@@ -297,7 +297,8 @@ export class Server {
         host: host,  // Use detected IP, not what they claim
         port: peerInfo.port,
         name: peerInfo.name || 'Unknown Node',
-        version: peerInfo.version || '0.1.0'
+        version: peerInfo.version || '0.1.0',
+        stats: peerInfo.stats || null  // Include stats for network leaderboard
       };
 
       const added = this.peerManager.addPeer(peerData);
@@ -307,6 +308,10 @@ export class Server {
       if (peer) {
         peer.online = true;
         peer.lastSeen = Date.now();
+        // Update stats from announcement
+        if (peerInfo.stats) {
+          peer.stats = peerInfo.stats;
+        }
       }
 
       // Only log new peers to reduce noise
@@ -361,32 +366,38 @@ export class Server {
         return;
       }
 
-      // Validate URL format
+      // Validate URL format and extract domain
+      let domain, homepageUrl;
       try {
         const parsedUrl = new URL(data.url);
         if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
           this.sendJSON(res, 400, { error: 'Only HTTP and HTTPS URLs are allowed' });
           return;
         }
+
+        // Extract domain from submitted URL
+        domain = parsedUrl.hostname.toLowerCase();
+        homepageUrl = `https://${domain}/`;
       } catch (err) {
         this.sendJSON(res, 400, { error: 'Invalid URL format' });
         return;
       }
 
-      // Add to crawl queue with priority (goes to front of queue)
-      const added = this.crawler.queue.add(data.url, true);
+      // Add homepage URL to crawl queue with priority (goes to front of queue)
+      const added = this.crawler.queue.add(homepageUrl, true);
 
       if (!added) {
-        this.sendJSON(res, 409, { error: 'URL already in queue or already crawled' });
+        this.sendJSON(res, 409, { error: 'Domain already in queue or already indexed' });
         return;
       }
 
-      console.log(`URL submitted for crawling (priority): ${data.url}`);
+      console.log(`Domain ${domain} submitted for crawling (priority): ${homepageUrl}`);
 
       this.sendJSON(res, 200, {
         success: true,
-        message: 'URL submitted for crawling',
-        url: data.url
+        message: `Domain ${domain} submitted for indexing`,
+        domain: domain,
+        url: homepageUrl
       });
     } catch (err) {
       console.error('Error handling URL submission:', err);
@@ -530,14 +541,14 @@ export class Server {
     const identity = getIdentity();
 
     // Calculate network-wide totals by summing all peers
-    let totalIndexedPages = this.store ? this.store.urls.size : 0;
+    let totalIndexedSites = this.store ? this.store.domains.size : 0;
     let storageContributed = this.store ? this.store.bytesUsed : 0;
 
     if (this.peerManager) {
       const peers = this.peerManager.getPeers();
       for (const peer of peers) {
         if (peer.online && peer.stats) {
-          totalIndexedPages += peer.stats.recordCount || 0;
+          totalIndexedSites += peer.stats.domainCount || peer.stats.recordCount || 0;
           storageContributed += peer.stats.bytesUsed || 0;
         }
       }
@@ -547,15 +558,43 @@ export class Server {
       nodeId: identity.nodeId,
       knownPeers: this.peerManager ? this.peerManager.getPeerCount() : 0,
       onlinePeers: this.peerManager ? this.peerManager.getOnlinePeerCount() : 0,
-      totalIndexedPages,
+      totalIndexedSites,
       storageContributed,
       crawlerActive: this.crawler ? true : false
     };
 
     if (this.peerManager) {
-      // Sort peers by lastSeen (most recent first)
+      // Get all peers and inject current node's stats where needed
       const peers = this.peerManager.getPeers();
-      network.peers = peers.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+
+      // Sort peers by lastSeen (most recent first)
+      network.peers = peers.map(peer => {
+        // If this peer is the current node, always inject fresh stats
+        if (peer.nodeId === identity.nodeId && this.store) {
+          return {
+            ...peer,
+            stats: {
+              domainCount: this.store.domains.size,
+              bytesUsed: this.store.bytesUsed
+            },
+            online: true,
+            lastSeen: Date.now()
+          };
+        }
+
+        // Ensure stats object exists (backward compatibility)
+        if (peer.online && !peer.stats) {
+          return {
+            ...peer,
+            stats: {
+              domainCount: 0,
+              bytesUsed: 0
+            }
+          };
+        }
+
+        return peer;
+      }).sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
     }
 
     this.sendJSON(res, 200, network);

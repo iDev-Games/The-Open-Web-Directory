@@ -77,16 +77,17 @@ export class Crawler {
               }
             }
 
-            // If we still need more URLs, sample random URLs from the existing index
-            // This maintains the index by recrawling old pages
-            if (added < 10 && this.store.urls.size > 0) {
-              const urlArray = Array.from(this.store.urls);
-              // Sample 50 random URLs to try adding
-              const sampleSize = Math.min(50, urlArray.length);
+            // If we still need more URLs, sample random domains from the existing index
+            // This maintains the index by re-crawling old homepages
+            if (added < 10 && this.store.domains.size > 0) {
+              const domainArray = Array.from(this.store.domains);
+              // Sample 50 random domains to try adding
+              const sampleSize = Math.min(50, domainArray.length);
               for (let i = 0; i < sampleSize && added < 10; i++) {
-                const randomIndex = Math.floor(Math.random() * urlArray.length);
-                const randomUrl = urlArray[randomIndex];
-                if (this.queue.add(randomUrl)) {
+                const randomIndex = Math.floor(Math.random() * domainArray.length);
+                const randomDomain = domainArray[randomIndex];
+                const homepageUrl = this.getHomepageUrl(randomDomain);
+                if (this.queue.add(homepageUrl)) {
                   added++;
                 }
               }
@@ -180,6 +181,20 @@ export class Crawler {
     this.stats.attempted++;
 
     try {
+      // Extract domain from URL
+      const domain = this.extractDomain(url);
+      if (!domain) {
+        this.stats.failed++;
+        return;
+      }
+
+      // Only crawl homepages (domain-only directory)
+      if (!this.isHomepage(url)) {
+        console.log(`Skipping non-homepage: ${url}`);
+        this.stats.blocked++;
+        return;
+      }
+
       const permission =
         await this.robots.allowed(url);
 
@@ -239,19 +254,25 @@ export class Crawler {
         page.description.length >= 30;
 
       if (hasValidTitle && hasValidDescription) {
-        // Check if URL already exists - if so, update it; otherwise add new
-        if (this.store.has(page.url)) {
-          await this.store.update(page.url, {
+        // Detect sitemap (best effort, don't block)
+        const sitemap = await this.detectSitemap(domain);
+
+        // Check if domain already exists - if so, update it; otherwise add new
+        if (this.store.has(domain)) {
+          await this.store.update(domain, {
             title: page.title,
             description: page.description,
+            sitemap: sitemap,
             status: response.statusCode,
             lastChecked: Date.now(),
           });
         } else {
           await this.store.add({
-            url: page.url,
+            domain: domain,
+            url: page.url,  // Store the homepage URL
             title: page.title,
             description: page.description,
+            sitemap: sitemap,
             status: response.statusCode,
             lastChecked: Date.now(),
           });
@@ -307,21 +328,32 @@ export class Crawler {
     }
 
     addDiscoveredLinks(links) {
-    let added = 0;
+    // Extract unique domains from discovered links
+    const discoveredDomains = new Set();
 
     for (const link of links) {
         const url = prepareUrl(link);
+        if (!url) continue;
 
-        if (!url) {
-        continue;
-        }
+        const domain = this.extractDomain(url);
+        if (!domain) continue;
 
-        if (this.store.has(url)) {
-        continue;
-        }
+        // Skip if domain already indexed
+        if (this.store.has(domain)) continue;
+
+        discoveredDomains.add(domain);
+    }
+
+    // Add homepage URLs for discovered domains to queue
+    let added = 0;
+    for (const domain of discoveredDomains) {
+        const homepageUrl = this.getHomepageUrl(domain);
+        const url = prepareUrl(homepageUrl);
+
+        if (!url) continue;
 
         if (this.queue.add(url)) {
-        added++;
+            added++;
         }
     }
 
@@ -341,6 +373,87 @@ export class Crawler {
       return new URL(url).origin;
     } catch {
       return url;
+    }
+  }
+
+  /**
+   * Extract domain (hostname) from URL
+   * @param {string} url - Full URL
+   * @returns {string|null} - Domain (hostname) or null if invalid
+   * @example extractDomain('https://www.example.com/page') => 'www.example.com'
+   */
+  extractDomain(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Detect sitemap URL for a domain
+   * @param {string} domain - Domain (hostname)
+   * @returns {Promise<string|null>} - Sitemap URL or null
+   */
+  async detectSitemap(domain) {
+    const TIMEOUT_MS = 2000; // Don't block crawling for sitemap detection
+
+    try {
+      // Try common sitemap locations
+      const candidates = [
+        `https://${domain}/sitemap.xml`,
+        `https://${domain}/sitemap_index.xml`,
+      ];
+
+      for (const url of candidates) {
+        try {
+          const response = await Promise.race([
+            this.fetch(url),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Timeout')), TIMEOUT_MS)
+            )
+          ]);
+
+          if (response.statusCode === 200) {
+            const contentType = response.headers['content-type'] || '';
+            if (contentType.includes('xml') || contentType.includes('text')) {
+              return url;
+            }
+          }
+        } catch {
+          // Try next candidate
+        }
+      }
+    } catch (err) {
+      // Sitemap detection failed, not critical
+    }
+
+    return null;
+  }
+
+  /**
+   * Get homepage URL for a domain
+   * @param {string} domain - Domain (hostname)
+   * @returns {string} - Homepage URL
+   * @example getHomepageUrl('example.com') => 'https://example.com/'
+   */
+  getHomepageUrl(domain) {
+    // Modern web is HTTPS-first
+    return `https://${domain}/`;
+  }
+
+  /**
+   * Check if URL is a homepage (root path)
+   * @param {string} url - Full URL
+   * @returns {boolean} - True if homepage
+   */
+  isHomepage(url) {
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname === '/' || parsed.pathname === '';
+    } catch {
+      return false;
     }
   }
 

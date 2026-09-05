@@ -38,7 +38,7 @@
       <div class="search-tips">
         <small>
           <strong>Tips:</strong>
-          <code>site:domain.com</code> •
+          Use 2+ character terms •
           <code>"exact phrase"</code> •
           <code>-excludeword</code>
         </small>
@@ -139,7 +139,10 @@
       const resultsDiv = document.getElementById('results');
 
       if (!data.results || data.results.length === 0) {
-        let html = '<div class="no-results">No results found.</div>';
+        // Check if there's a specific message (e.g., query too short)
+        let html = data.message
+          ? `<div class="info-box">${escapeHtml(data.message)}</div>`
+          : '<div class="no-results">No results found.</div>';
 
         // Add back button if not on first page
         if (currentPage > 0) {
@@ -183,7 +186,10 @@
             <div class="result-title">
               <a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a>
             </div>
-            <div class="result-url">${url}</div>
+            <div class="result-url">
+              ${url}
+              ${result.sitemap ? `<a href="${escapeHtml(result.sitemap)}" target="_blank" rel="noopener noreferrer" title="View sitemap" style="margin-left: 6px; font-size: 0.85em;">🗺️</a>` : ''}
+            </div>
             <div class="result-description">${description}</div>
             <div class="result-meta">
               <span>Status: ${status}</span>
@@ -200,7 +206,7 @@
         : data.total;
 
       html += `<div class="stats">
-        Found ${totalResults} result(s) for "${escapeHtml(data.query)}"
+        Found ${totalResults} site(s) for "${escapeHtml(data.query)}"
       `;
 
       if (data.distributed) {

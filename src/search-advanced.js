@@ -218,6 +218,25 @@ export async function search(store, query, options = {}) {
     };
   }
 
+  // Check if all search terms are too short (single characters)
+  // The inverted index filters out single-character words to reduce index size
+  if (hasSearchTerms && !hasFilters) {
+    const allTermsTooShort = filters.includeTerms.every(term => term.length < 2) &&
+                             filters.exactPhrases.every(phrase => phrase.split(/\s+/).every(word => word.length < 2));
+
+    if (allTermsTooShort) {
+      return {
+        query,
+        filters,
+        results: [],
+        total: 0,
+        offset,
+        limit,
+        message: 'Search terms must be at least 2 characters long'
+      };
+    }
+  }
+
   let candidateUrls;
 
   if (hasSearchTerms) {
@@ -246,12 +265,12 @@ export async function search(store, query, options = {}) {
     }
   } else {
     // Filter-only query (e.g., site:github.com with no search terms)
-    // Must scan all URLs, but this is a rare case
-    candidateUrls = new Set(store.urls);
+    // Must scan all domains, but this is a rare case
+    candidateUrls = new Set(store.domains);
   }
 
   // Load candidate records from disk
-  const candidateRecords = await store.getByUrls(Array.from(candidateUrls));
+  const candidateRecords = await store.getByDomains(Array.from(candidateUrls));
 
   const scored = [];
 
@@ -293,7 +312,7 @@ export async function search(store, query, options = {}) {
  * Get statistics about the search index
  */
 export function getSearchStats(store) {
-  const total = store.urls.size;
+  const total = store.domains.size;
 
   // Get index statistics
   const indexStats = store.index.stats();

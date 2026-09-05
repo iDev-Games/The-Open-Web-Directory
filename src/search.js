@@ -149,8 +149,8 @@ export async function search(store, query, options = {}) {
     };
   }
 
-  // Load records from disk for candidate URLs
-  const records = await store.getByUrls(Array.from(candidateUrls));
+  // Load records from disk for candidate domains
+  const records = await store.getByDomains(Array.from(candidateUrls));
 
   // Score the loaded records
   const scored = [];
@@ -186,7 +186,7 @@ export async function search(store, query, options = {}) {
  * Get search statistics
  */
 export function getSearchStats(store) {
-  const total = store.urls.size;
+  const total = store.domains.size;
 
   // Get index statistics
   const indexStats = store.index.stats();

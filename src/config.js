@@ -57,8 +57,8 @@ export const config = {
     crawler: {
         enabled: true,
 
-        // Be deliberately polite by default.
-        requestsPerSecond: 1,
+        // Homepage-only crawling hits different domains, so we can be faster.
+        requestsPerSecond: 5,
 
         // Maximum number of URLs waiting to be crawled.
         maxQueueSize: 10000,

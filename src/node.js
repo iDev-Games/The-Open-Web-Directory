@@ -36,8 +36,8 @@ async function main() {
     config.crawler.maxQueueSize
   );
 
-  // Initialize peer manager
-  const peerManager = new PeerManager(identity.nodeId, config);
+  // Initialize peer manager with store reference for stats in announcements
+  const peerManager = new PeerManager(identity.nodeId, config, store);
   await peerManager.init();
 
   console.log(`Known peers: ${peerManager.getPeerCount()}`);

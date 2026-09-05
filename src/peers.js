@@ -15,9 +15,10 @@ const MAX_PEERS = 100;
 const PEER_EXCHANGE_COUNT = 10;
 
 export class PeerManager {
-  constructor(nodeId, config) {
+  constructor(nodeId, config, store = null) {
     this.nodeId = nodeId;
     this.config = config;
+    this.store = store;  // Reference to store for stats
 
     // Map of peerId -> peer object
     this.peers = new Map();
@@ -26,6 +27,13 @@ export class PeerManager {
     this.lastAnnouncement = new Map();
 
     this.heartbeatTimer = null;
+  }
+
+  /**
+   * Set the store reference (called after store is loaded)
+   */
+  setStore(store) {
+    this.store = store;
   }
 
   /**
@@ -361,9 +369,9 @@ export class PeerManager {
           peerData.version = info.version || peerData.version;
 
           // Also record stats for network aggregation
-          if (info.pagesIndexed !== undefined) {
+          if (info.sitesIndexed !== undefined) {
             peerData.stats = {
-              recordCount: info.pagesIndexed,
+              domainCount: info.sitesIndexed,
               bytesUsed: info.storageUsed || 0
             };
           }
@@ -423,11 +431,18 @@ export class PeerManager {
     return new Promise((resolve, reject) => {
       const protocol = peer.port === 443 ? https : http;
 
+      // Include stats in announcement for network leaderboard
+      const stats = this.store ? {
+        domainCount: this.store.domains.size,
+        bytesUsed: this.store.bytesUsed
+      } : null;
+
       const announcement = JSON.stringify({
         nodeId: this.nodeId,
         port: this.config.server.port,
         name: this.config.node.name,
-        version: this.config.node.version
+        version: this.config.node.version,
+        stats: stats
       });
 
       const options = {

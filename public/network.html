@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Network Status - The Open Web Directory</title>
-  <meta name="description" content="View live network statistics for the Open Web Directory. Monitor connected nodes, total indexed pages, storage contributed, and peer health status across the distributed directory network.">
+  <meta name="description" content="View live network statistics for the Open Web Directory. Monitor connected nodes, total indexed sites, storage contributed, and peer health status across the distributed directory network.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -100,8 +100,8 @@
           <div class="stat-label">Online Peers</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">${formatNumber(data.totalIndexedPages || 0)}</div>
-          <div class="stat-label">Indexed Pages</div>
+          <div class="stat-value">${formatNumber(data.totalIndexedSites || 0)}</div>
+          <div class="stat-label">Indexed Sites</div>
         </div>
         <div class="stat-card">
           <div class="stat-value">${formatBytes(data.storageContributed || 0)}</div>
@@ -137,8 +137,8 @@
           <div class="info-value">${uptime}</div>
         </div>
         <div class="info-row">
-          <div class="info-label">Pages Indexed</div>
-          <div class="info-value">${formatNumber(node.pagesIndexed || 0)}</div>
+          <div class="info-label">Sites Indexed</div>
+          <div class="info-value">${formatNumber(node.sitesIndexed || 0)}</div>
         </div>
         <div class="info-row">
           <div class="info-label">Storage Used</div>
@@ -172,17 +172,17 @@
         }
       }
 
-      // Sort peers: online first (ranked by pages indexed), then offline (by last seen)
+      // Sort peers: online first (ranked by sites indexed), then offline (by last seen)
       const sortedPeers = [...uniquePeers.values()].sort((a, b) => {
         // Online nodes come first
         if (a.online && !b.online) return -1;
         if (!a.online && b.online) return 1;
 
-        // Among online nodes, sort by pages indexed (descending)
+        // Among online nodes, sort by sites indexed (descending)
         if (a.online && b.online) {
-          const aPages = a.stats?.recordCount || 0;
-          const bPages = b.stats?.recordCount || 0;
-          return bPages - aPages;
+          const aSites = a.stats?.domainCount || a.stats?.recordCount || 0;
+          const bSites = b.stats?.domainCount || b.stats?.recordCount || 0;
+          return bSites - aSites;
         }
 
         // Among offline nodes, sort by last seen (most recent first)
@@ -198,7 +198,7 @@
         const status = peer.online ? 'Online' : 'Offline';
         const shortId = peer.nodeId ? peer.nodeId.substring(0, 16) + '...' : 'Unknown';
         const lastSeen = peer.lastSeen ? new Date(peer.lastSeen).toLocaleString() : 'Never';
-        const pagesIndexed = peer.stats?.recordCount || 0;
+        const sitesIndexed = peer.stats?.domainCount || peer.stats?.recordCount || 0;
         const storageUsed = peer.stats?.bytesUsed || 0;
 
         // Show rank for online nodes
@@ -212,7 +212,7 @@
             </div>
             <div class="peer-details">
               <div><strong>Node ID:</strong> <code style="font-size: 0.85em;">${shortId}</code></div>
-              <div><strong>Pages Indexed:</strong> ${formatNumber(pagesIndexed)}</div>
+              <div><strong>Sites Indexed:</strong> ${formatNumber(sitesIndexed)}</div>
               <div><strong>Storage Used:</strong> ${formatBytes(storageUsed)}</div>
               <div><strong>Version:</strong> ${peer.version || 'Unknown'}</div>
               <div><strong>Last Seen:</strong> ${lastSeen}</div>

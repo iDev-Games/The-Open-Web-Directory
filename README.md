@@ -8,6 +8,8 @@
 
 The Open Web Directory (OWD) is a distributed directory of the open web, a programmatic data source providing searchable metadata about websites. It's designed for developers, AI systems, and researchers who need raw website data without the noise of ranking algorithms.
 
+OWD indexes **one entry per domain** (homepages only), making it a true directory of websites rather than a page-level search engine.
+
 OWD is designed to be run by anyone, on modest hardware, with minimal configuration. Clone the repo, run `npm start`, and you're live.
 
 ---
@@ -18,7 +20,8 @@ OWD is designed to be run by anyone, on modest hardware, with minimal configurat
 
 OWD is a **distributed directory** providing:
 
-- **Raw indexed data**: URLs, titles, descriptions, and basic metadata
+- **Raw indexed data**: Domain homepages with titles, descriptions, sitemaps, and basic metadata
+- **One entry per domain**: Homepage-only indexing for true directory functionality
 - **Programmatic API**: JSON endpoints for automated systems
 - **Run your own node**: Your infrastructure, your data
 - **Distributed network**: Multiple independent nodes working together
@@ -70,7 +73,7 @@ That's it! Your node will:
 1. Generate a unique node ID (stored in `data/identity.json`)
 2. Connect to the OWD network
 3. Start the HTTP server on port 80
-4. Begin crawling and indexing web pages
+4. Begin crawling and indexing website homepages
 5. Participate in distributed search
 
 ### Access the Interface
@@ -237,7 +240,7 @@ storage: {
 ```javascript
 crawler: {
   enabled: true,              // Enable/disable crawling
-  requestsPerSecond: 1,       // Be polite to websites
+  requestsPerSecond: 5,       // Homepage-only hits different domains
   maxQueueSize: 10000,        // URLs to queue
   maxResponseBytes: 2 * MB,   // Max page size to download
   requestTimeoutMs: 15000,    // Request timeout
@@ -328,14 +331,18 @@ Indexed records stored in **JSONL** (JSON Lines) format:
 
 ```json
 {
-  "url": "https://example.com",
+  "domain": "example.com",
+  "url": "https://example.com/",
   "title": "Example Site",
   "description": "An example website",
+  "sitemap": "https://example.com/sitemap.xml",
   "status": 200,
   "addedAt": 1788384455685,
   "lastChecked": 1788384455685
 }
 ```
+
+**Note**: OWD indexes **one entry per domain** (homepage only). Each domain has a single record with the homepage URL, title, description, and detected sitemap.
 
 ### Storage Structure
 
@@ -361,7 +368,7 @@ Storage automatically chunks into 16 MB files for manageability.
 
 Simply run `npm start`. Your node will:
 
-- Index web pages up to your storage limit
+- Index website homepages (one per domain) up to your storage limit
 - Contribute to distributed search
 - Share peer information
 - Help build the open web directory
@@ -406,8 +413,9 @@ OWD follows ethical crawling practices:
 
 - ✅ Respects `robots.txt`
 - ✅ Identifies itself honestly via User-Agent
-- ✅ Limits request rate (default: 1 request/second)
+- ✅ Limits request rate (default: 5 requests/second across different domains)
 - ✅ Times out on slow responses
+- ✅ Only crawls homepages (one per domain)
 - ✅ Doesn't store page content, only metadata
 - ✅ Backs off after errors
 
@@ -421,13 +429,15 @@ OWD follows ethical crawling practices:
 ### Data Collection
 
 What OWD indexes:
-- ✅ Public web page URLs
-- ✅ Page titles
+- ✅ Domain homepages (one per domain)
+- ✅ Homepage titles
 - ✅ Meta descriptions
+- ✅ Sitemap URLs (automatically detected)
 - ✅ HTTP status codes
-- ✅ Links to other pages
+- ✅ Links to discover new domains
 
 What OWD **doesn't** index:
+- ❌ Individual pages (only homepages)
 - ❌ Page content/body text
 - ❌ User data or personal information
 - ❌ Content behind authentication
@@ -488,23 +498,24 @@ With port forwarding:
 ### Performance
 
 On modest hardware (2 CPU, 2 GB RAM):
-- Indexes **~1,000 pages/day** (1 req/sec)
+- Indexes **~5,000 sites/day** (5 req/sec, homepage-only)
 - Search queries: **<100ms** (local), **<5s** (distributed)
-- Storage: **~2 KB per indexed page**
+- Storage: **~600 bytes per indexed site** (30-50x more efficient than page-level indexing)
 - Memory: **~128 MB** during operation
 
 ### Safety & Security
 
 **Is it safe to run OWD?** Yes, absolutely.
 
-- **No executable downloads**: OWD only fetches HTML text, never executables, scripts, or binaries
-- **No virus risk**: Pages are parsed as plain text and never executed
+- **No executable downloads**: OWD only fetches HTML text from homepages, never executables, scripts, or binaries
+- **No virus risk**: Homepage HTML is parsed as plain text and never executed
 - **No malicious code**: HTML is analyzed for metadata only, JavaScript is never run
 - **Zero dependencies**: No third-party packages that could contain malware
 - **Open source**: All code is auditable on GitHub
 - **Safe by design**: The crawler cannot download or execute harmful files
+- **Homepage-only**: Only crawls domain root paths (/) for maximum safety
 
-When OWD crawls a page, it downloads the HTML source (text), extracts title/description/links, and discards everything else. It's like reading a phone book — just copying text, nothing more.
+When OWD crawls a homepage, it downloads the HTML source (text), extracts title/description/sitemap/links, and discards everything else. It's like reading a phone book — just copying text, nothing more.
 
 ---
 
