@@ -7,7 +7,6 @@ import https from 'node:https';
  */
 
 const SEARCH_TIMEOUT = 5000; // 5 seconds per peer
-const MAX_PEER_QUERIES = 5; // Query up to 5 peers
 
 /**
  * Query a peer's search endpoint
@@ -71,16 +70,81 @@ async function queryPeerSearch(peer, query, limit, config) {
 }
 
 /**
+ * Select best peers for query using intelligent routing
+ * @param {PeerManager} peerManager
+ * @param {WordDistribution} wordDistribution
+ * @param {string} query
+ * @param {number} maxPeers
+ * @returns {Array} Selected peers
+ */
+function selectPeersForQuery(peerManager, wordDistribution, query, maxPeers, intelligentRouting) {
+  const readyPeers = peerManager.getReadyPeers(100); // Get all ready peers
+
+  if (readyPeers.length === 0) {
+    return [];
+  }
+
+  // If intelligent routing disabled or no word distribution, use random selection
+  if (!intelligentRouting || !wordDistribution) {
+    // Random selection (existing behavior)
+    return readyPeers.sort(() => Math.random() - 0.5).slice(0, maxPeers);
+  }
+
+  // Extract search terms from query
+  const terms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(t => t.length >= 2);
+
+  if (terms.length === 0) {
+    // No valid terms, fall back to random
+    return readyPeers.sort(() => Math.random() - 0.5).slice(0, maxPeers);
+  }
+
+  // Find best peers for these terms
+  const rankedPeers = wordDistribution.findBestPeersForQuery(terms, readyPeers);
+
+  // If we found smart matches, use them
+  if (rankedPeers.length > 0) {
+    const selectedPeers = rankedPeers.slice(0, maxPeers).map(rp => rp.peer);
+
+    // If we don't have enough smart matches, fill remainder with random
+    if (selectedPeers.length < maxPeers) {
+      const selectedIds = new Set(selectedPeers.map(p => p.nodeId));
+      const remaining = readyPeers
+        .filter(p => !selectedIds.has(p.nodeId))
+        .sort(() => Math.random() - 0.5)
+        .slice(0, maxPeers - selectedPeers.length);
+
+      selectedPeers.push(...remaining);
+    }
+
+    console.log(`[Smart Routing] Selected ${rankedPeers.length} smart peers (${selectedPeers.length} total) for query: "${query}"`);
+    return selectedPeers;
+  }
+
+  // No smart matches found, fall back to random selection
+  console.log(`[Smart Routing] No matches found, using random selection for query: "${query}"`);
+  return readyPeers.sort(() => Math.random() - 0.5).slice(0, maxPeers);
+}
+
+/**
  * Perform distributed search across peers
  * @param {PeerManager} peerManager
+ * @param {WordDistribution} wordDistribution
  * @param {object} localResults - Results from local search
  * @param {string} query
  * @param {number} limit
  * @param {number} offset
  * @param {object} config
  */
-export async function distributedSearch(peerManager, localResults, query, limit, offset, config) {
-  const peers = peerManager.getReadyPeers(MAX_PEER_QUERIES);
+export async function distributedSearch(peerManager, wordDistribution, localResults, query, limit, offset, config) {
+  // Get configuration
+  const maxPeerQueries = config.distributedSearch?.maxPeerQueries || 5;
+  const intelligentRouting = config.distributedSearch?.intelligentRouting !== false;
+
+  // Select peers using intelligent routing or random
+  const peers = selectPeersForQuery(peerManager, wordDistribution, query, maxPeerQueries, intelligentRouting);
 
   // Debug: Log local results count
   console.log(`[Distributed Search] Local results: ${localResults.results.length}, Ready peers to query: ${peers.length}`);

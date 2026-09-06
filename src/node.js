@@ -8,6 +8,7 @@ import { config } from './config.js';
 import { loadIdentity } from './identity.js';
 import { Server } from './server.js';
 import { PeerManager } from './peers.js';
+import { WordDistribution } from './word-distribution.js';
 import { normaliseUrl } from './url.js';
 
 console.log('Modules loaded successfully');
@@ -32,12 +33,17 @@ async function main() {
 
   await store.init();
 
+  // Initialize word distribution manager for intelligent query routing
+  const wordDistribution = new WordDistribution(config.distributedSearch?.topWordsCount || 20);
+  await wordDistribution.load();
+  console.log(`Word distribution loaded: ${wordDistribution.peerDistributions.size} peers`);
+
   const queue = new CrawlQueue(
     config.crawler.maxQueueSize
   );
 
-  // Initialize peer manager with store reference for stats in announcements
-  const peerManager = new PeerManager(identity.nodeId, config, store);
+  // Initialize peer manager with store and word distribution for announcements
+  const peerManager = new PeerManager(identity.nodeId, config, store, wordDistribution);
   await peerManager.init();
 
   console.log(`Known peers: ${peerManager.getPeerCount()}`);
@@ -56,8 +62,8 @@ async function main() {
     console.log('No bootstrap configured - operating independently');
   }
 
-  // Start HTTP server
-  const server = new Server(config, store, null, peerManager);
+  // Start HTTP server with word distribution for intelligent routing
+  const server = new Server(config, store, null, peerManager, wordDistribution);
   server.start();
 
   console.log('');
@@ -134,6 +140,38 @@ async function main() {
   } else {
     console.log('Crawler: DISABLED');
     console.log('');
+  }
+
+  // Periodic word distribution updates for intelligent query routing
+  if (config.distributedSearch?.intelligentRouting && store.index) {
+    const wordUpdateInterval = config.distributedSearch?.wordUpdateInterval || 300000; // 5 minutes
+
+    const updateWordDistribution = () => {
+      try {
+        const hasSignificantChanges = wordDistribution.updateLocalTopWords(store.index);
+        const topWordsCount = wordDistribution.localTopWords.size;
+
+        console.log(`[Word Distribution] Updated: ${topWordsCount} top words${hasSignificantChanges ? ' (significant changes)' : ''}`);
+
+        if (hasSignificantChanges || topWordsCount > 0) {
+          // Save to disk
+          wordDistribution.save().catch(err => {
+            console.error('[Word Distribution] Failed to save:', err.message);
+          });
+        }
+      } catch (err) {
+        console.error('[Word Distribution] Update failed:', err.message);
+      }
+    };
+
+    // Initial update - run quickly if index already has data
+    const initialDelay = store.index.index.size > 0 ? 5000 : 30000;
+    setTimeout(() => {
+      updateWordDistribution();
+    }, initialDelay); // 5s if index exists, 30s otherwise
+
+    // Periodic updates
+    setInterval(updateWordDistribution, wordUpdateInterval);
   }
 
   // Delay first status print to allow startup messages to be visible

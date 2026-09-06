@@ -88,4 +88,20 @@ export const config = {
         // Leave room for other applications.
         maxMemoryUsageMB: Math.max(128, Math.floor(os.totalmem() / GB * 64)),
     },
+
+    // Distributed search configuration
+    distributedSearch: {
+        // Enable intelligent query routing based on word distributions
+        intelligentRouting: true,
+
+        // Number of top words to share with peers (by domain count)
+        topWordsCount: 20,
+
+        // Maximum peers to query per search
+        maxPeerQueries: 5,
+
+        // How often to update word distributions (milliseconds)
+        // Only updates if significant changes detected (>10% word change)
+        wordUpdateInterval: 300000, // 5 minutes
+    },
 };

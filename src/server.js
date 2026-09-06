@@ -15,11 +15,12 @@ import { getSeedsForPeer } from './seed-pool.js';
 const STATIC_DIR = 'public';
 
 export class Server {
-  constructor(config, store, crawler, peerManager) {
+  constructor(config, store, crawler, peerManager, wordDistribution = null) {
     this.config = config;
     this.store = store;
     this.crawler = crawler;
     this.peerManager = peerManager;
+    this.wordDistribution = wordDistribution;
     this.server = null;
     this.startTime = Date.now();
 
@@ -168,6 +169,9 @@ export class Server {
 
     const searchStats = this.store ? basicSearchStats(this.store) : null;
 
+    // Word distribution stats for intelligent query routing
+    const wordDistStats = this.wordDistribution ? this.wordDistribution.getStats() : null;
+
     const nodeInfo = {
       nodeId: identity.nodeId,
       networkName: this.config.network.name,
@@ -182,6 +186,7 @@ export class Server {
       crawlerStatus: this.crawler ? 'running' : 'stopped',
       crawlerStats: stats,
       searchStats,
+      wordDistribution: wordDistStats,
       peerCount: this.peerManager ? this.peerManager.getPeerCount() : 0
     };
 
@@ -311,6 +316,10 @@ export class Server {
         // Update stats from announcement
         if (peerInfo.stats) {
           peer.stats = peerInfo.stats;
+        }
+        // Update word distribution for intelligent query routing
+        if (peerInfo.topWords && this.wordDistribution) {
+          this.wordDistribution.updatePeerDistribution(peerInfo.nodeId, peerInfo.topWords);
         }
       }
 
@@ -508,6 +517,7 @@ export class Server {
 
         const results = await distributedSearch(
           this.peerManager,
+          this.wordDistribution,
           localResults,
           query,
           limit,

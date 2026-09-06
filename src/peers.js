@@ -15,10 +15,11 @@ const MAX_PEERS = 100;
 const PEER_EXCHANGE_COUNT = 10;
 
 export class PeerManager {
-  constructor(nodeId, config, store = null) {
+  constructor(nodeId, config, store = null, wordDistribution = null) {
     this.nodeId = nodeId;
     this.config = config;
     this.store = store;  // Reference to store for stats
+    this.wordDistribution = wordDistribution;  // Reference to word distribution manager
 
     // Map of peerId -> peer object
     this.peers = new Map();
@@ -34,6 +35,13 @@ export class PeerManager {
    */
   setStore(store) {
     this.store = store;
+  }
+
+  /**
+   * Set the word distribution reference
+   */
+  setWordDistribution(wordDistribution) {
+    this.wordDistribution = wordDistribution;
   }
 
   /**
@@ -437,12 +445,17 @@ export class PeerManager {
         bytesUsed: this.store.bytesUsed
       } : null;
 
+      // Include top words for intelligent query routing
+      const topWords = this.wordDistribution ?
+        this.wordDistribution.getLocalTopWords() : null;
+
       const announcement = JSON.stringify({
         nodeId: this.nodeId,
         port: this.config.server.port,
         name: this.config.node.name,
         version: this.config.node.version,
-        stats: stats
+        stats: stats,
+        topWords: topWords
       });
 
       const options = {

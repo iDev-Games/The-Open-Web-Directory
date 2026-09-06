@@ -158,8 +158,8 @@ export class Crawler {
         state &&
         state.nextAllowedAt > Date.now()
       ) {
+        // Domain not ready yet - put back in queue for later
         checked.push(url);
-        this.queue.complete(url);
         continue;
       }
 
