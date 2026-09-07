@@ -62,6 +62,9 @@
           <p>Clone or download the repository from GitHub</p>
           <div class="code-block">
 git clone https://github.com/idev-games/the-open-web-directory.git
+          </div>
+          <p>Then navigate to the folder</p>
+          <div class="code-block">
 cd the-open-web-directory
           </div>
         </li>
@@ -88,7 +91,13 @@ npm start
         <li><strong>Operating System:</strong> Windows, macOS, or Linux</li>
         <li><strong>Node.js:</strong> Version 18 or later</li>
         <li><strong>Disk Space:</strong> 1 GB minimum (configurable up to terabytes)</li>
-        <li><strong>RAM:</strong> 512 MB minimum (1-2 GB recommended)</li>
+        <li><strong>RAM:</strong> Scales with database size
+          <ul style="margin-top: 5px; margin-left: 20px;">
+            <li>1 GB database: ~512 MB RAM</li>
+            <li>10 GB database: ~4 GB RAM</li>
+            <li>Index is ~35% of database size and kept in RAM for fast search</li>
+          </ul>
+        </li>
         <li><strong>Network:</strong> Always-on internet connection (optional but recommended)</li>
       </ul>
 

@@ -501,7 +501,11 @@ On modest hardware (2 CPU, 2 GB RAM):
 - Indexes **~5,000 sites/day** (5 req/sec, homepage-only)
 - Search queries: **<100ms** (local), **<5s** (distributed)
 - Storage: **~600 bytes per indexed site** (30-50x more efficient than page-level indexing)
-- Memory: **~128 MB** during operation
+- Memory: **Scales with database size**
+  - Small (1-2K sites): ~150 MB
+  - 1 GB database: ~400-450 MB (index is ~35% of database size)
+  - 10 GB database: ~3.5-4 GB
+  - Note: Index is kept entirely in RAM for fast search
 
 ### Safety & Security
 
