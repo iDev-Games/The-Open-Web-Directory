@@ -23,10 +23,17 @@ export class Store {
     // LRU cache for hot records (keeps ~1000 recent records in RAM)
     this.recordCache = new LRUCache(1000);
 
-    // Just track which domains exist (for deduplication)
+    // Track which domains exist (for deduplication)
     this.domains = new Set();
 
-    // Domain -> chunk filename (for disk lookups)
+    // ID assignment (starts at 1, determined from last record on load)
+    this.nextId = 1;
+
+    // Bidirectional mappings for ID<->domain lookup
+    this.domainToId = new Map();  // domain -> id
+    this.idToDomain = new Map();  // id -> domain
+
+    // ID -> chunk filename (for disk lookups)
     this.recordLocations = new Map();
 
     this.currentChunk = null;
@@ -184,14 +191,26 @@ export class Store {
         return;
       }
 
+      // Assign ID if record doesn't have one (migration from old format)
+      if (!record.id) {
+        record.id = this.nextId++;
+      } else {
+        // Update nextId to be one past the highest seen ID
+        if (record.id >= this.nextId) {
+          this.nextId = record.id + 1;
+        }
+      }
+
       /*
        * The latest record for a domain wins.
        */
       this.domains.add(record.domain);
-      this.recordLocations.set(record.domain, filename);
+      this.domainToId.set(record.domain, record.id);
+      this.idToDomain.set(record.id, record.domain);
+      this.recordLocations.set(record.id, filename);
 
-      // Add to inverted index
-      this.index.add(record.domain, record.title, record.description);
+      // Add to inverted index using ID instead of domain
+      this.index.add(record.id, record.title, record.description, record.url);
     } catch {
       /*
        * Ignore malformed individual records.
@@ -260,7 +279,20 @@ export class Store {
       return cached;
     }
 
-    const chunkFilename = this.recordLocations.get(domain);
+    // Get ID for domain
+    const id = this.domainToId.get(domain);
+    if (!id) {
+      return null;
+    }
+
+    return this.getById(id);
+  }
+
+  /**
+   * Load a specific record from disk by ID
+   */
+  async getById(id) {
+    const chunkFilename = this.recordLocations.get(id);
     if (!chunkFilename) {
       return null;
     }
@@ -284,7 +316,7 @@ export class Store {
 
         try {
           const record = JSON.parse(line);
-          if (record.domain === domain) {
+          if (record.id === id) {
             foundRecord = record;
             break;
           }
@@ -309,45 +341,33 @@ export class Store {
   /**
    * Load multiple records by domains from disk
    */
-  async getByDomains(domains) {
+  /**
+   * Load records by IDs (used by search)
+   */
+  async getByIds(ids) {
     const records = [];
-    const domainsToLoad = [];
+    const idsToLoad = new Set(ids);
 
-    // Check cache first for each domain
-    for (const domain of domains) {
-      const cached = this.recordCache.get(domain);
-      if (cached) {
-        records.push(cached);
-      } else {
-        domainsToLoad.push(domain);
-      }
-    }
+    // Group IDs by chunk for efficient loading
+    const idsByChunk = new Map();
 
-    // If all domains were cached, return early
-    if (domainsToLoad.length === 0) {
-      return records;
-    }
-
-    // Group domains by chunk for efficient loading
-    const domainsByChunk = new Map();
-
-    for (const domain of domainsToLoad) {
-      const chunkFilename = this.recordLocations.get(domain);
+    for (const id of idsToLoad) {
+      const chunkFilename = this.recordLocations.get(id);
       if (chunkFilename) {
-        if (!domainsByChunk.has(chunkFilename)) {
-          domainsByChunk.set(chunkFilename, new Set());
+        if (!idsByChunk.has(chunkFilename)) {
+          idsByChunk.set(chunkFilename, new Set());
         }
-        domainsByChunk.get(chunkFilename).add(domain);
+        idsByChunk.get(chunkFilename).add(id);
       }
     }
 
     // Load records from each chunk
-    for (const [chunkFilename, domainsInChunk] of domainsByChunk.entries()) {
+    for (const [chunkFilename, idsInChunk] of idsByChunk.entries()) {
       const filePath = path.join(this.recordsDirectory, chunkFilename);
       const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
 
       let buffer = '';
-      const remainingDomains = new Set(domainsInChunk);
+      const remainingIds = new Set(idsInChunk);
 
       for await (const data of stream) {
         buffer += data;
@@ -361,15 +381,15 @@ export class Store {
 
           try {
             const record = JSON.parse(line);
-            if (remainingDomains.has(record.domain)) {
+            if (remainingIds.has(record.id)) {
               records.push(record);
-              remainingDomains.delete(record.domain);
+              remainingIds.delete(record.id);
 
-              // Add to cache
+              // Add to cache by domain for future lookups
               this.recordCache.set(record.domain, record);
 
               // Early exit if we found all records in this chunk
-              if (remainingDomains.size === 0) {
+              if (remainingIds.size === 0) {
                 break;
               }
             }
@@ -378,7 +398,7 @@ export class Store {
           }
         }
 
-        if (remainingDomains.size === 0) {
+        if (remainingIds.size === 0) {
           break;
         }
       }
@@ -387,6 +407,22 @@ export class Store {
     }
 
     return records;
+  }
+
+  /**
+   * Load records by domains (backward compatibility)
+   */
+  async getByDomains(domains) {
+    // Convert domains to IDs
+    const ids = [];
+    for (const domain of domains) {
+      const id = this.domainToId.get(domain);
+      if (id !== undefined) {
+        ids.push(id);
+      }
+    }
+
+    return this.getByIds(ids);
   }
 
   async add(record) {
@@ -403,8 +439,10 @@ export class Store {
     }
 
     const now = Date.now();
+    const id = this.nextId++;
 
     const storedRecord = {
+      id,
       domain: record.domain,
       url: record.url || '',
       title: record.title || '',
@@ -433,7 +471,8 @@ export class Store {
     const updated = {
       ...existing,
       ...changes,
-      domain: existing.domain,
+      id: existing.id,  // Preserve ID
+      domain: existing.domain,  // Preserve domain
       updatedAt: Date.now(),
     };
 
@@ -478,19 +517,24 @@ export class Store {
       'utf8'
     );
 
-    // Update index and domain tracking
+    // Update index and tracking
     if (isNew) {
       this.domains.add(record.domain);
-      this.index.add(record.domain, record.title, record.description);
+      this.domainToId.set(record.domain, record.id);
+      this.idToDomain.set(record.id, record.domain);
+      this.index.add(record.id, record.title, record.description, record.url);
     } else {
       // Update existing entry in index
-      this.index.update(record.domain, record.title, record.description);
+      this.index.update(record.id, record.title, record.description, record.url);
     }
 
     this.recordLocations.set(
-      record.domain,
+      record.id,
       this.currentChunk
     );
+
+    // Also cache by domain for lookups
+    this.recordCache.set(record.domain, record);
 
     this.currentChunkBytes += bytes;
     this.bytesUsed += bytes;

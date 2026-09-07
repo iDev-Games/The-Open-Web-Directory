@@ -237,10 +237,10 @@ export async function search(store, query, options = {}) {
     }
   }
 
-  let candidateUrls;
+  let candidateIds;
 
   if (hasSearchTerms) {
-    // Use inverted index to get candidate URLs from search terms
+    // Use inverted index to get candidate IDs from search terms
     // Combine all terms (include terms + words from exact phrases)
     const allTerms = [...filters.includeTerms];
 
@@ -250,10 +250,10 @@ export async function search(store, query, options = {}) {
       allTerms.push(...words);
     }
 
-    // Get candidate URLs from index (intersection of all terms)
-    candidateUrls = store.index.search(allTerms);
+    // Get candidate IDs from index (intersection of all terms)
+    candidateIds = store.index.search(allTerms);
 
-    if (candidateUrls.size === 0) {
+    if (candidateIds.size === 0) {
       return {
         query,
         filters,
@@ -265,12 +265,13 @@ export async function search(store, query, options = {}) {
     }
   } else {
     // Filter-only query (e.g., site:github.com with no search terms)
-    // Must scan all domains, but this is a rare case
-    candidateUrls = new Set(store.domains);
+    // Must scan all records, but this is a rare case
+    // Get all IDs from the store
+    candidateIds = new Set(store.idToDomain.keys());
   }
 
   // Load candidate records from disk
-  const candidateRecords = await store.getByDomains(Array.from(candidateUrls));
+  const candidateRecords = await store.getByIds(Array.from(candidateIds));
 
   const scored = [];
 
@@ -321,6 +322,6 @@ export function getSearchStats(store) {
     totalRecords: total,
     indexWords: indexStats.words,
     indexMappings: indexStats.mappings,
-    avgUrlsPerWord: indexStats.avgUrlsPerWord
+    avgIdsPerWord: indexStats.avgIdsPerWord
   };
 }

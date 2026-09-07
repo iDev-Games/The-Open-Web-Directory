@@ -1,14 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/**
- * Inverted Index
- * Maps words to URLs that contain them
- * Enables fast search without loading all records into memory
- */
+// Common English stop-words to discard
+const STOP_WORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t',
+  'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
+  'can\'t', 'cannot', 'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing', 'don\'t',
+  'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'hadn\'t', 'has', 'hasn\'t', 'have',
+  'haven\'t', 'having', 'he', 'he\'d', 'he\'ll', 'he\'s', 'her', 'here', 'here\'s', 'hers', 'herself',
+  'him', 'himself', 'his', 'how', 'how\'s', 'i', 'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into',
+  'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself', 'let\'s', 'me', 'more', 'most', 'mustn\'t', 'my',
+  'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our',
+  'ours', 'ourselves', 'out', 'over', 'own', 'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s',
+  'should', 'shouldn\'t', 'so', 'some', 'such', 'than', 'that', 'that\'s', 'the', 'their', 'theirs',
+  'them', 'themselves', 'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll', 'they\'re',
+  'they\'ve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', 'wasn\'t',
+  'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t', 'what', 'what\'s', 'when', 'when\'s',
+  'where', 'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s', 'with', 'won\'t',
+  'would', 'wouldn\'t', 'you', 'you\'d', 'you\'ll', 'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves'
+]);
+
+// Protocol/web noise to strip out from URLs
+const PROTOCOL_WORDS = new Set(['http', 'https', 'www', 'com', 'org', 'net', 'io', 'co', 'html', 'php']);
 
 /**
- * Tokenize text into searchable words
+ * Tokenize text into searchable words with strict stop-word and protocol filtering
  */
 function tokenize(text) {
   if (!text) return [];
@@ -16,8 +32,12 @@ function tokenize(text) {
   return text
     .toLowerCase()
     .split(/[\s.,;:!?()[\]{}'"\/\\-]+/)
-    .filter(word => word.length > 1) // Skip single chars
-    .filter(word => word.length < 50); // Skip huge words (likely garbage)
+    .filter(word => {
+      if (word.length <= 1 || word.length >= 50) return false;
+      if (STOP_WORDS.has(word)) return false;
+      if (PROTOCOL_WORDS.has(word)) return false;
+      return true;
+    });
 }
 
 export class InvertedIndex {
@@ -25,17 +45,17 @@ export class InvertedIndex {
     this.dataDirectory = dataDirectory;
     this.indexFile = path.join(dataDirectory, 'index.json');
 
-    // word -> Set of URLs
+    // word -> Set of record IDs (from Store)
     this.index = new Map();
 
-    // Track index size for memory management
+    // Stats tracking
     this.wordCount = 0;
     this.totalMappings = 0;
 
-    // Track changes for batched saves
+    // Save tracking
     this.dirty = false;
     this.lastSaveTime = Date.now();
-    this.SAVE_INTERVAL = 60000; // Save every minute if dirty
+    this.SAVE_INTERVAL = 60000;
   }
 
   /**
@@ -50,13 +70,16 @@ export class InvertedIndex {
       const data = await fs.promises.readFile(this.indexFile, 'utf8');
       const serialized = JSON.parse(data);
 
-      // Convert arrays back to Sets
-      for (const [word, urls] of Object.entries(serialized)) {
-        this.index.set(word, new Set(urls));
+      this.clear();
+
+      // Hydrate Inverted Index (word -> Set of IDs)
+      if (serialized.index) {
+        for (const [word, ids] of Object.entries(serialized.index)) {
+          this.index.set(word, new Set(ids));
+        }
       }
 
       this.updateStats();
-
       console.log(`Loaded inverted index: ${this.wordCount} words, ${this.totalMappings} mappings`);
     } catch (err) {
       console.error('Error loading index:', err.message);
@@ -67,32 +90,23 @@ export class InvertedIndex {
    * Save index to disk
    */
   async save(force = false) {
-    // Skip if not dirty and not forced
-    if (!this.dirty && !force) {
-      return;
-    }
+    if (!this.dirty && !force) return;
 
-    // Skip if saved recently (unless forced)
     const timeSinceLastSave = Date.now() - this.lastSaveTime;
-    if (!force && timeSinceLastSave < this.SAVE_INTERVAL) {
-      return;
-    }
+    if (!force && timeSinceLastSave < this.SAVE_INTERVAL) return;
 
     try {
-      // Convert Sets to arrays for JSON serialization
-      const serialized = {};
-      for (const [word, urls] of this.index.entries()) {
-        serialized[word] = Array.from(urls);
+      const serializedIndex = {};
+      for (const [word, ids] of this.index.entries()) {
+        serializedIndex[word] = Array.from(ids);
       }
 
+      const payload = {
+        index: serializedIndex
+      };
+
       const tempFile = `${this.indexFile}.tmp`;
-
-      await fs.promises.writeFile(
-        tempFile,
-        JSON.stringify(serialized),
-        'utf8'
-      );
-
+      await fs.promises.writeFile(tempFile, JSON.stringify(payload), 'utf8');
       await fs.promises.rename(tempFile, this.indexFile);
 
       this.dirty = false;
@@ -103,9 +117,9 @@ export class InvertedIndex {
   }
 
   /**
-   * Add a record to the index
+   * Add a record to the index using Store ID
    */
-  add(url, title, description) {
+  add(id, title, description, url) {
     const words = new Set([
       ...tokenize(title),
       ...tokenize(description),
@@ -116,7 +130,7 @@ export class InvertedIndex {
       if (!this.index.has(word)) {
         this.index.set(word, new Set());
       }
-      this.index.get(word).add(url);
+      this.index.get(word).add(id);
     }
 
     this.dirty = true;
@@ -124,14 +138,13 @@ export class InvertedIndex {
   }
 
   /**
-   * Remove a URL from the index
+   * Remove a record from the index by ID
    */
-  remove(url) {
-    for (const [word, urls] of this.index.entries()) {
-      urls.delete(url);
-
-      // Clean up empty word entries
-      if (urls.size === 0) {
+  remove(id) {
+    // Clean up from word mapping
+    for (const [word, ids] of this.index.entries()) {
+      ids.delete(id);
+      if (ids.size === 0) {
         this.index.delete(word);
       }
     }
@@ -143,109 +156,100 @@ export class InvertedIndex {
   /**
    * Update index for a changed record
    */
-  update(url, newTitle, newDescription) {
-    // Simple approach: remove and re-add
-    this.remove(url);
-    this.add(url, newTitle, newDescription);
+  update(id, newTitle, newDescription, newUrl) {
+    this.remove(id);
+    this.add(id, newTitle, newDescription, newUrl);
   }
 
   /**
-   * Search for URLs matching all terms
+   * Search for IDs matching all terms (AND search)
    */
   search(terms) {
-    if (!terms || terms.length === 0) {
+    if (!terms || terms.length === 0) return new Set();
+
+    // Clean query terms using tokenizer rules
+    const cleanTerms = terms.flatMap(tokenize);
+    if (cleanTerms.length === 0) return new Set();
+
+    const firstTerm = cleanTerms[0];
+    let matchingIds = this.index.get(firstTerm);
+
+    if (!matchingIds || matchingIds.size === 0) {
       return new Set();
     }
 
-    // Get URLs for first term
-    const firstTerm = terms[0].toLowerCase();
-    let results = this.index.get(firstTerm);
+    matchingIds = new Set(matchingIds);
 
-    if (!results || results.size === 0) {
-      return new Set();
-    }
+    for (let i = 1; i < cleanTerms.length; i++) {
+      const term = cleanTerms[i];
+      const ids = this.index.get(term);
 
-    // Make a copy so we don't modify the index
-    results = new Set(results);
-
-    // Intersect with URLs for remaining terms
-    for (let i = 1; i < terms.length; i++) {
-      const term = terms[i].toLowerCase();
-      const urls = this.index.get(term);
-
-      if (!urls || urls.size === 0) {
-        return new Set(); // No results if any term has no matches
+      if (!ids || ids.size === 0) {
+        return new Set();
       }
 
-      // Keep only URLs that appear in both sets
-      for (const url of results) {
-        if (!urls.has(url)) {
-          results.delete(url);
+      for (const id of matchingIds) {
+        if (!ids.has(id)) {
+          matchingIds.delete(id);
         }
       }
 
-      // Early exit if no results left
-      if (results.size === 0) {
+      if (matchingIds.size === 0) {
         return new Set();
       }
     }
 
-    return results;
+    return matchingIds;
   }
 
   /**
-   * Search for URLs matching any term (OR search)
+   * Search for IDs matching any term (OR search)
    */
   searchOr(terms) {
-    const results = new Set();
+    const cleanTerms = terms.flatMap(tokenize);
+    const matchingIds = new Set();
 
-    for (const term of terms) {
-      const urls = this.index.get(term.toLowerCase());
-      if (urls) {
-        for (const url of urls) {
-          results.add(url);
+    for (const term of cleanTerms) {
+      const ids = this.index.get(term);
+      if (ids) {
+        for (const id of ids) {
+          matchingIds.add(id);
         }
       }
     }
 
-    return results;
+    return matchingIds;
   }
 
   /**
-   * Get URLs containing a specific word
+   * Get IDs containing a specific word
    */
-  getUrls(word) {
-    return this.index.get(word.toLowerCase()) || new Set();
+  getIds(word) {
+    const tokens = tokenize(word);
+    if (tokens.length === 0) return new Set();
+
+    return this.index.get(tokens[0]) || new Set();
   }
 
-  /**
-   * Update stats
-   */
   updateStats() {
     this.wordCount = this.index.size;
     this.totalMappings = 0;
 
-    for (const urls of this.index.values()) {
-      this.totalMappings += urls.size;
+    for (const ids of this.index.values()) {
+      this.totalMappings += ids.size;
     }
   }
 
-  /**
-   * Get index statistics
-   */
   stats() {
     return {
       words: this.wordCount,
       mappings: this.totalMappings,
-      avgUrlsPerWord: this.wordCount > 0
+      avgIdsPerWord: this.wordCount > 0
         ? (this.totalMappings / this.wordCount).toFixed(1)
         : 0
     };
   }
 
-  /**
-   * Clear the index
-   */
   clear() {
     this.index.clear();
     this.wordCount = 0;

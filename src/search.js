@@ -136,10 +136,10 @@ export async function search(store, query, options = {}) {
     };
   }
 
-  // Use inverted index to get candidate URLs
-  const candidateUrls = store.index.search(terms);
+  // Use inverted index to get candidate IDs
+  const candidateIds = store.index.search(terms);
 
-  if (candidateUrls.size === 0) {
+  if (candidateIds.size === 0) {
     return {
       query,
       results: [],
@@ -149,8 +149,8 @@ export async function search(store, query, options = {}) {
     };
   }
 
-  // Load records from disk for candidate domains
-  const records = await store.getByDomains(Array.from(candidateUrls));
+  // Load records from disk for candidate IDs
+  const records = await store.getByIds(Array.from(candidateIds));
 
   // Score the loaded records
   const scored = [];
@@ -195,6 +195,6 @@ export function getSearchStats(store) {
     totalRecords: total,
     indexWords: indexStats.words,
     indexMappings: indexStats.mappings,
-    avgUrlsPerWord: indexStats.avgUrlsPerWord
+    avgIdsPerWord: indexStats.avgIdsPerWord
   };
 }
